@@ -1,6 +1,8 @@
 import datetime
 import logging
 import urllib.request, urllib.parse
+import json
+from random import randint
 
 from django.conf import settings
 from django.contrib import messages
@@ -132,6 +134,9 @@ class Enrollment(models.Model):
     personal_code = models.CharField(max_length=10, blank=True, default='')
     selected_group = models.ForeignKey(StudentGroup, blank=True, null=True, default=None, on_delete=models.SET_NULL)
 
+    anon_name = models.CharField(max_length=50, blank=True, default='')
+    anon_email = models.CharField(max_length=85, blank=True, default='')
+    # create anon hash in lti.py like external_student_id
 
 def create_enrollment_code(sender, instance, created, **kwargs):
     if created:
@@ -140,6 +145,19 @@ def create_enrollment_code(sender, instance, created, **kwargs):
         while Enrollment.objects.filter(course_instance=instance.course_instance, personal_code=code).exists():
             code = get_random_string(6, easychars)
         instance.personal_code = code
+
+        json_file = open('./assets/list.json')
+        data = json.load(json_file)
+        json_file.close()
+        num_cols = len(data["colors"])
+        num_ani = len(data["animals"])
+        def namegen():
+            return data["colors"][randint(0, num_cols)]["name"] + " " + data["animals"][randint(0, num_ani)]
+        codename = namegen()
+        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
+            codename = namegen()
+        instance.anon_name = codename
+        instance.anon_email = "{}-{}.{}@aplus.invalid".format(instance.course_instance.course.code, str(instance.course_instance.starting_time).split(" ")[0], codename.replace(" ", ""))
         instance.save()
 
 post_save.connect(create_enrollment_code, sender=Enrollment)

@@ -8,6 +8,7 @@ import json
 
 from aplus.api import api_reverse
 from lib.helpers import update_url_params
+from course.models import Enrollment
 
 
 class LTIRequest(object):
@@ -21,7 +22,22 @@ class LTIRequest(object):
         link_id = link_id or "aplus{:d}".format(service.pk)
         title = title or link_id
 
+        # Gather user information
         student_id = self.external_student_id(user)
+        full_name = "{} {}".format(user.first_name, user.last_name)
+        given_name = user.first_name
+        family_name = user.last_name
+        email = user.email
+
+        # Anonymize user information
+        enrollment = Enrollment.objects.filter(course_instance=instance, user_profile=user.userprofile).first()
+        if enrollment: # and role == "Student" ?
+            names = enrollment.anon_name.split(" ")
+            # student_id = ??? TODO: crete a hash of anon info
+            full_name = enrollment.anon_name
+            given_name = names[0]
+            family_name = names[1]
+            email = enrollment.anon_email
 
         # Determine user role.
         role = "Student"
@@ -42,10 +58,10 @@ class LTIRequest(object):
             # User.
             "user_id": student_id,
             "roles": role,
-            "lis_person_name_full": "{} {}".format(user.first_name, user.last_name),
-            "lis_person_name_given": user.first_name,
-            "lis_person_name_family": user.last_name,
-            "lis_person_contact_email_primary": user.email,
+            "lis_person_name_full": full_name,
+            "lis_person_name_given": given_name,
+            "lis_person_name_family": family_name,
+            "lis_person_contact_email_primary": email,
 
             # Selected course.
             "context_id": context_id,

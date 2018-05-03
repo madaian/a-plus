@@ -91,6 +91,9 @@ INSTALLED_APPS = (
     'django.contrib.auth',
     'django.contrib.humanize',
 
+    # LTI login
+    'django_lti_login',
+
     # 3rd party applications
     'bootstrapform',
     'rest_framework',
@@ -369,6 +372,7 @@ use_cache_template_loader_in_production(__name__)
 # setup authentication backends based on installed_apps
 SOCIAL_AUTH = False
 AUTHENTICATION_BACKENDS = (
+    'django_lti_login.backends.LTIAuthBackend',
     'django.contrib.auth.backends.ModelBackend',
 )
 if 'shibboleth_login' in INSTALLED_APPS:
@@ -377,6 +381,13 @@ if 'social_django' in INSTALLED_APPS:
     SOCIAL_AUTH = True
     AUTHENTICATION_BACKENDS += ('social_core.backends.google.GoogleOAuth2',)
 
+# XXX: for django-lti-login
+AUTH_LTI_LOGIN = {
+    # e.g. roles: Instructor, TeachingAssistant, Student
+    'ACCEPTED_ROLES': None, # Allow with any role
+    'STAFF_ROLES': ['Instructor'], # set is_staff=True for teachers.
+    # read more from django_lti_login.apps.app_settings
+}
 
 if DEBUG:
     # Allow basic auth for API when DEBUG is on

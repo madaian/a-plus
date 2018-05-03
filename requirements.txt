@@ -24,5 +24,8 @@ six==1.11.0
 South==0.8.2
 unittest-xml-reporting==1.11.0
 
+# LTI test
+git+https://github.com/Aalto-LeTech/django-lti-login.git@master#egg=django-lti-login
+
 # Required for memcached:
 #python-memcached==1.58

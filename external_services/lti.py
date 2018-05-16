@@ -23,7 +23,7 @@ class LTIRequest(object):
         title = title or link_id
 
         # Gather user information
-        student_id = self.external_student_id(user)
+        student_id = "i" + self.external_student_id(user) # i for internal
         full_name = "{} {}".format(user.first_name, user.last_name)
         given_name = user.first_name
         family_name = user.last_name
@@ -31,13 +31,20 @@ class LTIRequest(object):
 
         # Anonymize user information
         enrollment = Enrollment.objects.filter(course_instance=instance, user_profile=user.userprofile).first()
-        if enrollment: # and role == "Student" ?
-            names = enrollment.anon_name.split(" ")
-            # student_id = ??? TODO: crete a hash of anon info
+        if enrollment:
+            # Creates anon name and id for pre-anonymisation Enrollments
+            if not (enrollment.anon_name or enrollment.anon_id):
+                # the model's post_save functions take care of the creation
+                enrollment.save()
+            student_id = "a" + enrollment.anon_id # a for anonymous
             full_name = enrollment.anon_name
+            names = enrollment.anon_name.split(" ")
             given_name = names[0]
-            family_name = names[1]
-            email = enrollment.anon_email
+            family_name = names[1] if len(names) > 1 else "Anonymous"
+            email = "{}-{}.{}@aplus.invalid".format(
+                course.code,
+                instance.instance_name,
+                full_name.replace(" ", ""))
 
         # Determine user role.
         role = "Student"
@@ -92,7 +99,7 @@ class LTIRequest(object):
         return hashlib.md5(student_id.encode('utf-8')).hexdigest()
 
     def get_checksum_of_parameters(self):
-        sum = md5()
+        sum = md5() # TODO: use sha-2 instead?
         for key, value in sorted(self.parameters.items()):
             sum.update("{}={};".format(key, value).encode('utf-8'))
         return sum.hexdigest()

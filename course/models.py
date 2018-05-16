@@ -2,6 +2,7 @@ import datetime
 import logging
 import urllib.request, urllib.parse
 import json
+import os
 from random import randint
 
 from django.conf import settings
@@ -134,9 +135,10 @@ class Enrollment(models.Model):
     personal_code = models.CharField(max_length=10, blank=True, default='')
     selected_group = models.ForeignKey(StudentGroup, blank=True, null=True, default=None, on_delete=models.SET_NULL)
 
+    # TODO: indices
     anon_name = models.CharField(max_length=50, blank=True, default='')
-    anon_email = models.CharField(max_length=85, blank=True, default='')
-    # create anon hash in lti.py like external_student_id
+    # Primary key?
+    anon_id = models.CharField(max_length=50, blank=True, default='')
 
 def create_enrollment_code(sender, instance, created, **kwargs):
     if created:
@@ -145,22 +147,44 @@ def create_enrollment_code(sender, instance, created, **kwargs):
         while Enrollment.objects.filter(course_instance=instance.course_instance, personal_code=code).exists():
             code = get_random_string(6, easychars)
         instance.personal_code = code
-
-        json_file = open('./assets/list.json')
-        data = json.load(json_file)
-        json_file.close()
-        num_cols = len(data["colors"])
-        num_ani = len(data["animals"])
-        def namegen():
-            return data["colors"][randint(0, num_cols)]["name"] + " " + data["animals"][randint(0, num_ani)]
-        codename = namegen()
-        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
-            codename = namegen()
-        instance.anon_name = codename
-        instance.anon_email = "{}-{}.{}@aplus.invalid".format(instance.course_instance.course.code, str(instance.course_instance.starting_time).split(" ")[0], codename.replace(" ", ""))
         instance.save()
 
+def create_anon_id(sender, instance, created, **kwargs):
+    if created or not instance.anon_id:
+        nums = '0123456789'
+        course_id = instance.course_instance.course.code + instance.course_instance.instance_name
+        code = course_id + get_random_string(16, nums)
+        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_id=code).exists():
+            code = course_id + get_random_string(16, nums)
+        instance.anon_id = code
+        instance.save()
+
+def pseudonymize(sender, instance, created, **kwargs):
+    if created or not instance.anon_name:
+        with open("./assets/pseudonym.json") as json_file:
+            data = json.load(json_file)
+            num_cols = len(data["colors"])
+            num_ani = len(data["animals"])
+            def namegen():
+                def color():
+                    return data["colors"][randint(0, num_cols)]["name"]
+                second_name = ""
+                '''
+                 If the color-animal pairs are starting to run out, add another color.
+                 This is highly unlikely, as there are roughly 140*68=9520 possible combinations
+                '''
+                if Enrollment.objects.count() > num_cols * num_ani * 0.75:
+                    second_name = color()
+                return color() + second_name + " " + data["animals"][randint(0, num_ani)]
+            codename = namegen()
+            while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
+                codename = namegen()
+            instance.anon_name = codename
+            instance.save()
+
 post_save.connect(create_enrollment_code, sender=Enrollment)
+post_save.connect(create_anon_id, sender=Enrollment)
+post_save.connect(pseudonymize, sender=Enrollment)
 
 
 class UserTag(UrlMixin, models.Model):

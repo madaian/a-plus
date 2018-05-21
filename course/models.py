@@ -1,13 +1,13 @@
 import datetime
+import json
 import logging
 import urllib.request, urllib.parse
-import json
-import os
 from random import randint
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.staticfiles import finders
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
 from django.core.validators import RegexValidator
@@ -36,6 +36,12 @@ from userprofile.models import User, UserProfile, GraderUser
 
 logger = logging.getLogger("course.models")
 
+# Read pseudonymization data from file
+pseudpath = finders.find('pseudonym.json')
+data = {}
+with open(pseudpath) as json_file:
+    data = json.load(json_file)
+    json_file.close()
 
 class Course(UrlMixin, models.Model):
     """
@@ -134,11 +140,8 @@ class Enrollment(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     personal_code = models.CharField(max_length=10, blank=True, default='')
     selected_group = models.ForeignKey(StudentGroup, blank=True, null=True, default=None, on_delete=models.SET_NULL)
-
-    # TODO: indices
     anon_name = models.CharField(max_length=50, blank=True, default='')
-    # Primary key?
-    anon_id = models.CharField(max_length=50, blank=True, default='')
+    anon_id = models.CharField(max_length=50, unique=True)
 
 def create_enrollment_code(sender, instance, created, **kwargs):
     if created:
@@ -161,26 +164,26 @@ def create_anon_id(sender, instance, created, **kwargs):
 
 def pseudonymize(sender, instance, created, **kwargs):
     if created or not instance.anon_name:
-        with open("./assets/pseudonym.json") as json_file:
-            data = json.load(json_file)
+        def namegen():
             num_cols = len(data["colors"])
             num_ani = len(data["animals"])
-            def namegen():
-                def color():
-                    return data["colors"][randint(0, num_cols)]["name"]
-                second_name = ""
-                '''
-                 If the color-animal pairs are starting to run out, add another color.
-                 This is highly unlikely, as there are roughly 140*68=9520 possible combinations
-                '''
-                if Enrollment.objects.count() > num_cols * num_ani * 0.75:
-                    second_name = color()
-                return color() + second_name + " " + data["animals"][randint(0, num_ani)]
+
+            def color():
+                return data["colors"][randint(0, num_cols)]["name"]
+            '''
+             If the color-animal pairs are starting to run out, add another color.
+             This is highly unlikely, as there are roughly 140*68=9520 possible combinations
+            '''
+            second_name = ""
+            if Enrollment.objects.count() > num_cols * num_ani * 0.75:
+                second_name = color()
+            return color() + second_name + " " + data["animals"][randint(0, num_ani)]
+
+        codename = namegen()
+        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
             codename = namegen()
-            while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
-                codename = namegen()
-            instance.anon_name = codename
-            instance.save()
+        instance.anon_name = codename
+        instance.save()
 
 post_save.connect(create_enrollment_code, sender=Enrollment)
 post_save.connect(create_anon_id, sender=Enrollment)

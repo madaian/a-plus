@@ -2,7 +2,7 @@ import datetime
 import json
 import logging
 import urllib.request, urllib.parse
-from random import randint
+from random import randint, choice
 
 from django.conf import settings
 from django.contrib import messages
@@ -37,11 +37,8 @@ from userprofile.models import User, UserProfile, GraderUser
 logger = logging.getLogger("course.models")
 
 # Read pseudonymization data from file
-pseudpath = finders.find('pseudonym.json')
-data = {}
-with open(pseudpath) as json_file:
+with open(finders.find('pseudonym.json')) as json_file:
     data = json.load(json_file)
-    json_file.close()
 
 class Course(UrlMixin, models.Model):
     """
@@ -157,33 +154,38 @@ def create_anon_id(sender, instance, created, **kwargs):
         nums = '0123456789'
         course_id = instance.course_instance.course.code + instance.course_instance.instance_name
         code = course_id + get_random_string(16, nums)
-        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_id=code).exists():
-            code = course_id + get_random_string(16, nums)
+        for i in range(10000):
+            if Enrollment.objects.filter(course_instance=instance.course_instance, anon_id=code).exists():
+                code = course_id + get_random_string(16, nums)
+            else:
+                break
+        if Enrollment.objects.filter(course_instance=instance.course_instance, anon_id=code).exists():
+            raise RuntimeError("No anonymous user ids available")
         instance.anon_id = code
-        instance.save()
+        instance.save(update_fields=['anon_id'])
 
 def pseudonymize(sender, instance, created, **kwargs):
     if created or not instance.anon_name:
         def namegen():
-            num_cols = len(data["colors"])
-            num_ani = len(data["animals"])
-
-            def color():
-                return data["colors"][randint(0, num_cols)]["name"]
             '''
              If the color-animal pairs are starting to run out, add another color.
              This is highly unlikely, as there are roughly 140*68=9520 possible combinations
             '''
             second_name = ""
-            if Enrollment.objects.count() > num_cols * num_ani * 0.75:
-                second_name = color()
-            return color() + second_name + " " + data["animals"][randint(0, num_ani)]
+            if Enrollment.objects.filter(course_instance=instance.course_instance).count() > len(data["colors"]) * len(data["animals"]) * 0.75:
+                second_name = choice(data["colors"])["name"]
+            return choice(data["colors"])["name"] + second_name + " " + choice(data["animals"])
 
         codename = namegen()
-        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
-            codename = namegen()
+        for i in range(10000):
+            if Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
+                codename = namegen()
+            else:
+                break
+        if Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
+            raise RuntimeError("No anonymous usernames available")
         instance.anon_name = codename
-        instance.save()
+        instance.save(update_fields=['anon_name'])
 
 post_save.connect(create_enrollment_code, sender=Enrollment)
 post_save.connect(create_anon_id, sender=Enrollment)

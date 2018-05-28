@@ -154,13 +154,12 @@ def create_anon_id(sender, instance, created, **kwargs):
         nums = '0123456789'
         course_id = instance.course_instance.course.code + instance.course_instance.instance_name
         code = course_id + get_random_string(16, nums)
-        for i in range(10000):
-            if Enrollment.objects.filter(course_instance=instance.course_instance, anon_id=code).exists():
-                code = course_id + get_random_string(16, nums)
-            else:
-                break
-        if Enrollment.objects.filter(course_instance=instance.course_instance, anon_id=code).exists():
-            raise RuntimeError("No anonymous user ids available")
+        i = 0
+        while Enrollment.objects.filter(anon_id=code).exists():
+            code = course_id + get_random_string(16, nums)
+            i += 1
+            if i > 10000:
+                raise RuntimeError("No anonymous user ids available")
         instance.anon_id = code
         instance.save(update_fields=['anon_id'])
 
@@ -177,13 +176,12 @@ def pseudonymize(sender, instance, created, **kwargs):
             return choice(data["colors"])["name"] + second_name + " " + choice(data["animals"])
 
         codename = namegen()
-        for i in range(10000):
-            if Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
-                codename = namegen()
-            else:
-                break
-        if Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
-            raise RuntimeError("No anonymous usernames available")
+        i = 0
+        while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
+            code = course_id + get_random_string(16, nums)
+            i += 1
+            if i > 10000:
+                raise RuntimeError("No anonymous usernames available")
         instance.anon_name = codename
         instance.save(update_fields=['anon_name'])
 

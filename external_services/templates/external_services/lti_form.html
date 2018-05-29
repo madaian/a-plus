@@ -13,9 +13,19 @@
 	<p>
 		{% blocktrans with name=service.menu_label %}
 		You are about to use an external service, {{ name }}, for the first time.
+		{% endblocktrans %}
+		{% if service.allow_real_user_data %}
+		{% blocktrans %}
 		To use the service, your name and email address will be transferred
 		to the provider of this service.
 		{% endblocktrans %}
+		{% else %}
+		{% blocktrans %}
+		Your name and email address will be pseudonymised and transferred
+		to the provider of this service. This means that the service cannot
+		identify you, but A+ administration can.
+		{% endblocktrans %}
+		{% endif %}
 	</p>
 	{% if service.enable_api_access %}
 	<p>
@@ -36,15 +46,20 @@
 			{% endblocktrans %}
 		{% endif %}
 	</p>
-	</p>
 	{% endif %}
 	<p>
 		<a href="{{ site }}" target="_new">{{ site }}</a>
 	</p>
+	<p>
+		{% url 'privacy_policy' as policy_url %}
+		{% if policy_url %}
+		<a href="{% url 'privacy_policy' %}" target="_new">A+ {% trans "Privacy Policy" %}</a>
+		{% endif %}
+	</p>
 </div>
 <div>
 	<p>
-		<input id="auto_accept" type="checkbox" value"1" checked="checked" />
+		<input id="auto_accept" type="checkbox" value"1" />
 		<label for="auto_accept">{% trans "Remember this and automatically redirect next time." %}</label>
 	</p>
 	<p>

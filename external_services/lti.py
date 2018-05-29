@@ -1,5 +1,8 @@
 from hashlib import md5
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.utils.translation import get_language
+from django.utils.translation import ugettext_lazy as _
 from oauthlib.common import urldecode
 from oauthlib.oauth1 import Client, SIGNATURE_HMAC, SIGNATURE_TYPE_BODY, \
     SIGNATURE_TYPE_QUERY
@@ -13,7 +16,7 @@ from course.models import Enrollment
 
 class LTIRequest(object):
 
-    def __init__(self, service, user, instance, host, title, context_id=None, link_id=None, add=None):
+    def __init__(self, service, user, instance, host, title, request, context_id=None, link_id=None, add=None):
         self.service = service
         course = instance.course
 
@@ -47,7 +50,8 @@ class LTIRequest(object):
                     instance.instance_name,
                     full_name.replace(" ", ""))
             else:
-                raise Exception('User needs to be enrolled to access anonymous service.')
+                messages.error(request, _('You need to be enrolled to access an anonymous service.'))
+                raise PermissionDenied()
 
         # Determine user role.
         role = "Student"

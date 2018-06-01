@@ -26,32 +26,28 @@ class LTIRequest(object):
         title = title or link_id
 
         # Gather user information
-        student_id = "i" + self.external_student_id(user) # i for internal
-        full_name = "{} {}".format(user.first_name, user.last_name)
-        given_name = user.first_name
-        family_name = user.last_name
-        email = user.email
-
-        # Anonymize user information
-        if not service.allow_real_user_data:
+        if service.allow_real_user_data:
+            student_id = "i" + self.external_student_id(user) # i for internal
+            full_name = "{} {}".format(user.first_name, user.last_name)
+            given_name = user.first_name
+            family_name = user.last_name
+            email = user.email
+        else:
+            # Anonymize user information
             enrollment = Enrollment.objects.filter(course_instance=instance, user_profile=user.userprofile).first()
-            if enrollment:
-                # Creates anon name and id for pre-anonymisation Enrollments
-                if not (enrollment.anon_name or enrollment.anon_id):
-                    # the model's post_save functions take care of the creation
-                    enrollment.save()
-                student_id = "a" + enrollment.anon_id # a for anonymous
-                full_name = enrollment.anon_name
-                names = enrollment.anon_name.split(" ")
-                given_name = names[0]
-                family_name = names[1] if len(names) > 1 else "Anonymous"
-                email = "{}-{}.{}@aplus.invalid".format(
-                    course.code,
-                    instance.instance_name,
-                    full_name.replace(" ", ""))
-            else:
+            if not enrollment:
                 messages.error(request, _('You need to be enrolled to access an anonymous service.'))
                 raise PermissionDenied()
+            # Creates anon name and id for pre-pseudonymisation Enrollments
+            if not (enrollment.anon_name or enrollment.anon_id):
+                # the model's post_save functions take care of the creation
+                enrollment.save()
+            student_id = "a" + enrollment.anon_id # a for anonymous
+            full_name = enrollment.anon_name
+            given_name, sep, family_name = full_name.rpartition(" ")
+            if not given_name:
+              given_name = "Anonymous"
+            email = "anonymous-" + enrollment.anon_id
 
         # Determine user role.
         role = "Student"

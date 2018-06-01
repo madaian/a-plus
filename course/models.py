@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import string
 import urllib.request, urllib.parse
 from random import randint, choice
 
@@ -151,12 +152,11 @@ def create_enrollment_code(sender, instance, created, **kwargs):
 
 def create_anon_id(sender, instance, created, **kwargs):
     if created or not instance.anon_id:
-        nums = '0123456789'
-        course_id = instance.course_instance.course.code + instance.course_instance.instance_name
-        code = course_id + get_random_string(16, nums)
+        nums = string.digits + string.ascii_lowercase
+        code = get_random_string(16, nums)
         i = 0
         while Enrollment.objects.filter(anon_id=code).exists():
-            code = course_id + get_random_string(16, nums)
+            code = get_random_string(16, nums)
             i += 1
             if i > 10000:
                 raise RuntimeError("No anonymous user ids available")
@@ -178,7 +178,7 @@ def pseudonymize(sender, instance, created, **kwargs):
         codename = namegen()
         i = 0
         while Enrollment.objects.filter(course_instance=instance.course_instance, anon_name=codename).exists():
-            code = course_id + get_random_string(16, nums)
+            codename = namegen()
             i += 1
             if i > 10000:
                 raise RuntimeError("No anonymous usernames available")
